@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"net/http"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -39,16 +40,37 @@ func wrapAddHeader(header, headerValue string, next http.Handler) http.Handler {
 	return addHeader{next: next, header: header, headerValue: headerValue}
 }
 
+type slowResponse struct {
+	next  http.Handler
+	delay time.Duration
+}
+
+func (l slowResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	time.Sleep(l.delay)
+	l.next.ServeHTTP(w, r)
+}
+func wrapSlowResponse(delay time.Duration, next http.Handler) http.Handler {
+	return slowResponse{next: next, delay: delay}
+}
+
 func main() {
 	flag.Parse()
 
+	delay := time.Second * 10
+
 	log.Infof("listening on %s", listenOn)
+	log.Infof("prefix with '_slow/' for delayed response by %s", delay)
 
 	s := http.FileServer(http.Dir("./"))
+	s = wrapLogRequest(s)
+	s = wrapAddHeader("X-Listening-On", listenOn, s)
+	http.Handle("/", s)
 
-	http.Handle("/",
-		wrapAddHeader("X-Listening-On", listenOn, wrapLogRequest(s)),
-	)
+	s = http.FileServer(http.Dir("./"))
+	s = wrapLogRequest(s)
+	s = wrapAddHeader("X-Listening-On", listenOn, s)
+	s = wrapSlowResponse(delay, s)
+	http.Handle("/_slow/", http.StripPrefix("/_slow/", s))
 
 	log.Error(http.ListenAndServe(listenOn, nil))
 }
