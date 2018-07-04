@@ -20,7 +20,7 @@ type logRequest struct {
 
 func (l logRequest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	l.next.ServeHTTP(w, r)
-	log.Infof("%s %s %s %s --> %s", r.Method, r.URL, r.RemoteAddr, r.Header, w.Header())
+	log.Infof("%s %s %s <--%s -->%s", r.Method, r.Host, r.URL.Path, r.Header, w.Header())
 }
 func wrapLogRequest(next http.Handler) http.Handler {
 	return logRequest{next: next}
